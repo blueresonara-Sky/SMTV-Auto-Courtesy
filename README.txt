@@ -29,10 +29,12 @@ v5.1
 
 Install on Windows
 1. Unzip the folder.
-2. Copy the whole folder into:
-   %APPDATA%\Adobe\CEP\extensions\
-3. Restart Premiere Pro.
-4. Open from:
+2. Run `Install Auto Footage Courtesy.bat`.
+3. The installer copies the extension into:
+   %APPDATA%\Adobe\CEP\extensions\Auto Footage Courtesy
+4. The installer checks `HKCU\Software\Adobe\CSXS.11\PlayerDebugMode` and can enable it for the current Windows user if needed.
+5. Restart Premiere Pro.
+6. Open from:
    Window -> Extensions -> Auto Footage Courtesy
 
 Usage
