@@ -5,7 +5,7 @@
   function setText(id, value) { var el = $(id); if (el) { el.textContent = value; } }
 
   var GITHUB_REPO = 'blueresonara-Sky/SMTV-Auto-Courtesy';
-  var fieldIds = ['mogrtPath', 'textParamName', 'targetTrack', 'scanUpTo', 'minDuration', 'suffix', 'maxCourtesy'];
+  var fieldIds = ['mogrtPath', 'textParamName', 'targetTrack', 'scanUpTo', 'minDuration', 'suffix', 'maxCourtesy', 'transitionSeconds'];
   var checkboxIds = ['ignoreV1'];
   var state = {
     currentVersion: 'Loading...',
@@ -137,6 +137,35 @@
     return 0;
   }
 
+  function extractManifestVersion(manifestText) {
+    var match = String(manifestText || '').match(/ExtensionBundleVersion="([^"]+)"/i);
+    return match && match[1] ? String(match[1]) : '';
+  }
+
+  function readLocalManifestVersion() {
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', './CSXS/manifest.xml', true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) { return; }
+        if (xhr.status >= 200 && xhr.status < 300 || xhr.status === 0) {
+          var version = extractManifestVersion(xhr.responseText);
+          if (version) {
+            resolve(version);
+          } else {
+            reject(new Error('Manifest version not found.'));
+          }
+        } else {
+          reject(new Error('Could not read local manifest.'));
+        }
+      };
+      xhr.onerror = function () {
+        reject(new Error('Could not read local manifest.'));
+      };
+      xhr.send();
+    });
+  }
+
   function httpGetJson(url) {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
@@ -214,9 +243,15 @@
   async function loadUpdaterContext() {
     var raw = await evalHostPromise('filenameCourtesyPanel_getUpdaterContext()');
     if (!raw || /^EvalScript error/i.test(raw) || /^FAIL:/i.test(raw)) {
-      state.currentVersion = 'Unknown';
+      try {
+        state.currentVersion = await readLocalManifestVersion();
+      } catch (e) {
+        state.currentVersion = 'Unknown';
+      }
       refreshUpdateUi();
-      setUpdateStatus('Version check failed');
+      if (state.currentVersion === 'Unknown') {
+        setUpdateStatus('Version check failed');
+      }
       return;
     }
 
@@ -224,11 +259,22 @@
       var parsed = JSON.parse(raw);
       state.updaterContext = parsed;
       state.currentVersion = parsed.currentVersion || 'Unknown';
+      if (state.currentVersion === 'Unknown') {
+        try {
+          state.currentVersion = await readLocalManifestVersion();
+        } catch (e2) {}
+      }
       refreshUpdateUi();
     } catch (e) {
-      state.currentVersion = 'Unknown';
+      try {
+        state.currentVersion = await readLocalManifestVersion();
+      } catch (e3) {
+        state.currentVersion = 'Unknown';
+      }
       refreshUpdateUi();
-      setUpdateStatus('Version check failed');
+      if (state.currentVersion === 'Unknown') {
+        setUpdateStatus('Version check failed');
+      }
     }
   }
 
@@ -364,6 +410,7 @@
     var minDuration = parseFloat($('minDuration').value);
     var suffix = $('suffix').value.trim() || 'Thank you.';
     var maxCourtesy = parseFloat($('maxCourtesy').value);
+    var transitionSeconds = parseFloat($('transitionSeconds').value);
     var ignoreV1 = $('ignoreV1') && $('ignoreV1').checked;
 
     saveSettings();
@@ -373,9 +420,10 @@
     if (isNaN(scanUpTo) || scanUpTo < 1) { scanUpTo = 8; }
     if (isNaN(minDuration) || minDuration < 0) { minDuration = 2; }
     if (isNaN(maxCourtesy) || maxCourtesy <= 0) { maxCourtesy = 3; }
+    if (isNaN(transitionSeconds) || transitionSeconds < 0) { transitionSeconds = 0.3; }
 
     setStatus('Running...');
-    var script = "filenameCourtesyPanel_run('" + esc(mogrtPath) + "','" + esc(textParamName) + "'," + targetTrack + ',' + scanUpTo + ',' + minDuration + ",'" + esc(suffix) + "'," + maxCourtesy + ',' + (ignoreV1 ? 'true' : 'false') + ')';
+    var script = "filenameCourtesyPanel_run('" + esc(mogrtPath) + "','" + esc(textParamName) + "'," + targetTrack + ',' + scanUpTo + ',' + minDuration + ",'" + esc(suffix) + "'," + maxCourtesy + ',' + transitionSeconds + ',' + (ignoreV1 ? 'true' : 'false') + ')';
     evalHost(script, function (result) {
       setStatus(result || 'Done.');
     });

@@ -33,7 +33,7 @@ Install on Windows
 3. The installer copies the extension into:
    %APPDATA%\Adobe\CEP\extensions\Auto Footage Courtesy
 4. The installer removes known older installs first so Premiere does not load conflicting versions.
-5. The installer checks `HKCU\Software\Adobe\CSXS.11\PlayerDebugMode` and can enable it for the current Windows user if needed.
+5. The installer checks detected `HKCU\Software\Adobe\CSXS.*\PlayerDebugMode` keys and enables them automatically for the current Windows user when needed.
 6. Restart Premiere Pro.
 7. Open from:
    Window -> Extensions -> Auto Footage Courtesy
@@ -53,6 +53,8 @@ Notes
 - The script uses the first valid occurrence in time for each unique text after @.
 - Example: 1@almond.mp4 and 2@almond.mp4 only create one courtesy text.
 - Example output: Footage courtesy of almond. Thank you.
+- Added courtesy clips get a default 0.3 second fade-in and fade-out when the clip opacity property is available.
+- The panel includes a Transition Fade field so you can change that fade duration before generating courtesies.
 - For clips that overlap a selected In/Out range, only the overlapping portion is counted for duration and placement.
 - If a source clip is hidden, inactive, or underneath a higher visible source clip, it is ignored.
 

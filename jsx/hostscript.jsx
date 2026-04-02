@@ -1,4 +1,13 @@
-function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOneBased, scanUpToTrackNumberOneBased, minDurationSeconds, suffix, maxDisplaySeconds, ignoreV1) {
+function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOneBased, scanUpToTrackNumberOneBased, minDurationSeconds, suffix, maxDisplaySeconds, transitionSeconds, ignoreV1) {
+    var DEFAULT_FADE_SECONDS = 0.3;
+    if (typeof ignoreV1 === 'undefined' && (typeof transitionSeconds === 'boolean' || transitionSeconds === 'true' || transitionSeconds === 'false' || transitionSeconds === 0 || transitionSeconds === 1 || transitionSeconds === '0' || transitionSeconds === '1')) {
+        ignoreV1 = transitionSeconds;
+        transitionSeconds = DEFAULT_FADE_SECONDS;
+    }
+    var configuredFadeSeconds = Number(transitionSeconds);
+    if (!isFinite(configuredFadeSeconds) || configuredFadeSeconds < 0) {
+        configuredFadeSeconds = DEFAULT_FADE_SECONDS;
+    }
     function fileExists(path) {
         try { var f = new File(path); return f.exists; } catch (e) { return false; }
     }
@@ -70,6 +79,118 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         } catch (e) {
             textParam.setValue(newText, true);
         }
+    }
+    function normalizeLookupName(name) {
+        return String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    }
+    function findComponentParam(trackItem, componentHints, propertyHints) {
+        if (!trackItem || !trackItem.components || !trackItem.components.numItems) { return null; }
+        var normalizedComponentHints = [];
+        var normalizedPropertyHints = [];
+        var i = 0;
+        for (i = 0; i < componentHints.length; i++) {
+            normalizedComponentHints.push(normalizeLookupName(componentHints[i]));
+        }
+        for (i = 0; i < propertyHints.length; i++) {
+            normalizedPropertyHints.push(normalizeLookupName(propertyHints[i]));
+        }
+        for (i = 0; i < trackItem.components.numItems; i++) {
+            var component = trackItem.components[i];
+            if (!component) { continue; }
+            var componentNames = [
+                normalizeLookupName(component.displayName),
+                normalizeLookupName(component.matchName)
+            ];
+            var componentMatches = false;
+            for (var c = 0; c < componentNames.length; c++) {
+                if (!componentNames[c]) { continue; }
+                for (var ch = 0; ch < normalizedComponentHints.length; ch++) {
+                    if (componentNames[c] === normalizedComponentHints[ch] || componentNames[c].indexOf(normalizedComponentHints[ch]) !== -1) {
+                        componentMatches = true;
+                        break;
+                    }
+                }
+                if (componentMatches) { break; }
+            }
+            if (!componentMatches || !component.properties || !component.properties.numItems) { continue; }
+            for (var p = 0; p < component.properties.numItems; p++) {
+                var prop = component.properties[p];
+                if (!prop) { continue; }
+                var propNames = [
+                    normalizeLookupName(prop.displayName),
+                    normalizeLookupName(prop.matchName)
+                ];
+                for (var pn = 0; pn < propNames.length; pn++) {
+                    if (!propNames[pn]) { continue; }
+                    for (var ph = 0; ph < normalizedPropertyHints.length; ph++) {
+                        if (propNames[pn] === normalizedPropertyHints[ph] || propNames[pn].indexOf(normalizedPropertyHints[ph]) !== -1) {
+                            return prop;
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+    function setParamKey(param, timeTicks, value, updateUI) {
+        var time = makeTimeFromTicks(timeTicks);
+        try { param.addKey(time); } catch (e) {}
+        param.setValueAtKey(time, value, updateUI ? 1 : 0);
+        try { param.setInterpolationTypeAtKey(time, 0, updateUI ? 1 : 0); } catch (e2) {}
+    }
+    function applyDefaultFade(trackItem, clipDurationTicks, fadeSeconds) {
+        var opacityParam = findComponentParam(trackItem, ['Opacity', 'ADBE Opacity'], ['Opacity']);
+        if (!opacityParam) {
+            return { applied: false, reason: 'opacity control not found' };
+        }
+        try {
+            if (!opacityParam.areKeyframesSupported || !opacityParam.areKeyframesSupported()) {
+                return { applied: false, reason: 'opacity keyframes unsupported' };
+            }
+        } catch (e) {
+            return { applied: false, reason: 'opacity keyframes unsupported' };
+        }
+
+        var existingKeys = null;
+        try { existingKeys = opacityParam.getKeys(); } catch (e2) {}
+        if (existingKeys && existingKeys.length && existingKeys.length > 0) {
+            return { applied: false, reason: 'existing opacity animation kept' };
+        }
+
+        clipDurationTicks = Math.round(Number(clipDurationTicks));
+        if (!isFinite(clipDurationTicks) || clipDurationTicks <= 1) {
+            return { applied: false, reason: 'clip too short for fade' };
+        }
+
+        var fadeTicks = secondsToTicks(fadeSeconds);
+        if (fadeTicks <= 0) {
+            return { applied: false, reason: 'invalid fade duration' };
+        }
+
+        if (clipDurationTicks <= fadeTicks * 2) {
+            fadeTicks = Math.floor(clipDurationTicks / 2);
+        }
+        if (fadeTicks <= 0) {
+            return { applied: false, reason: 'clip too short for fade' };
+        }
+
+        try { opacityParam.setTimeVarying(true); } catch (e3) {}
+
+        var clipStartTicks = 0;
+        var clipMiddleTicks = Math.floor(clipDurationTicks / 2);
+        var clipEndTicks = clipDurationTicks;
+        if (clipDurationTicks <= fadeTicks * 2) {
+            setParamKey(opacityParam, clipStartTicks, 0, false);
+            setParamKey(opacityParam, clipMiddleTicks, 100, false);
+            setParamKey(opacityParam, clipEndTicks, 0, true);
+        } else {
+            setParamKey(opacityParam, clipStartTicks, 0, false);
+            setParamKey(opacityParam, clipStartTicks + fadeTicks, 100, false);
+            setParamKey(opacityParam, clipEndTicks - fadeTicks, 100, false);
+            setParamKey(opacityParam, clipEndTicks, 0, true);
+        }
+
+        return { applied: true, reason: '' };
     }
     function makeTimeFromTicks(ticks) {
         var t = new Time();
@@ -421,12 +542,26 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         var maxSecs = Number(maxDisplaySeconds);
         if (!isFinite(maxSecs) || maxSecs <= 0) { maxSecs = 3; }
         var displaySeconds = actualSeconds < maxSecs ? actualSeconds : maxSecs;
+        var desiredEndTicks = item.startTicks + secondsToTicks(displaySeconds);
         try {
-            inserted.end = makeTimeFromTicks(item.startTicks + secondsToTicks(displaySeconds));
+            inserted.end = makeTimeFromTicks(desiredEndTicks);
         } catch (e) {
             try { inserted.end = item.end; } catch (e2) {}
         }
-        return { text: finalText, displaySeconds: displaySeconds };
+        var finalEndTicks = desiredEndTicks;
+        try {
+            var insertedEndTicks = Number(inserted.end.ticks);
+            if (isFinite(insertedEndTicks) && insertedEndTicks > item.startTicks) {
+                finalEndTicks = insertedEndTicks;
+            }
+        } catch (e3) {}
+        var fadeResult = applyDefaultFade(inserted, finalEndTicks - item.startTicks, configuredFadeSeconds);
+        return {
+            text: finalText,
+            displaySeconds: displaySeconds,
+            fadeApplied: fadeResult.applied,
+            fadeReason: fadeResult.reason
+        };
     }
 
     try {
@@ -461,6 +596,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         lines.push('Target text track: V' + (targetTrackIndex + 1));
         lines.push('Minimum duration: ' + durationCutoff + 's');
         lines.push('Maximum courtesy duration: ' + maxSecs + 's');
+        lines.push('Default fade: ' + configuredFadeSeconds + 's fade-in/out on inserted courtesy clips');
         if (processingRange.mode === 'in_out') {
             lines.push('Processing range: active In/Out selection (' + ticksToSeconds(processingRange.endTicks - processingRange.startTicks).toFixed(2) + 's)');
         } else {
@@ -485,7 +621,8 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
             try {
                 var result = insertCourtesyClip(seq, targetTrackIndex, mogrtPath, textParamName, item, suffix, maxSecs);
                 processed++;
-                lines.push('OK: ' + item.clipName + ' -> ' + result.text + ' [' + result.displaySeconds.toFixed(2) + 's]');
+                var fadeLabel = result.fadeApplied ? ', fade applied' : ', fade skipped: ' + result.fadeReason;
+                lines.push('OK: ' + item.clipName + ' -> ' + result.text + ' [' + result.displaySeconds.toFixed(2) + 's' + fadeLabel + ']');
             } catch (e) {
                 failed++;
                 lines.push('FAIL: ' + item.clipName + ' -> Error: ' + e);

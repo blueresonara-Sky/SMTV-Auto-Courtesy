@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "SCRIPT_DIR=%~dp0"
 set "SOURCE_ROOT="
@@ -21,7 +21,8 @@ if "%APPDATA%"=="" (
 
 set "TARGET_ROOT=%APPDATA%\Adobe\CEP\extensions"
 set "TARGET_DIR=%TARGET_ROOT%\Auto Footage Courtesy"
-set "CSXS_KEY=HKCU\Software\Adobe\CSXS.11"
+set "CSXS_BASE_KEY=HKCU\Software\Adobe"
+set "CSXS_FALLBACK_KEY=%CSXS_BASE_KEY%\CSXS.11"
 set "OLD_DIR_1=%TARGET_ROOT%\premiere_filename_panel_v5_2"
 set "OLD_DIR_2=%TARGET_ROOT%\Filename Courtesy Panel v5.2"
 set "OLD_DIR_3=%TARGET_ROOT%\Filename Courtesy Panel"
@@ -123,30 +124,12 @@ echo Copied file: %FILE_NAME%
 exit /b 0
 
 :check_debug_mode
-set "PLAYER_DEBUG_MODE="
-for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "$v=(Get-ItemProperty -Path 'HKCU:\Software\Adobe\CSXS.11' -Name PlayerDebugMode -ErrorAction SilentlyContinue).PlayerDebugMode; if ($null -ne $v) { Write-Output $v }"`) do set "PLAYER_DEBUG_MODE=%%I"
-set "PLAYER_DEBUG_MODE=%PLAYER_DEBUG_MODE:"=%"
-
-if /I "%PLAYER_DEBUG_MODE%"=="1" (
-    echo CEP debug mode is enabled at %CSXS_KEY%.
-    exit /b 0
-)
-
-echo CEP debug mode is not enabled for Premiere extensions.
-echo Checked: %CSXS_KEY%\PlayerDebugMode
-choice /C YN /N /M "Enable CEP debug mode for this Windows user now? [Y/N]: "
-if errorlevel 2 (
-    echo Skipped registry update. Premiere may not show the extension until debug mode is enabled.
-    exit /b 0
-)
-
-reg add "%CSXS_KEY%" /v PlayerDebugMode /t REG_SZ /d 1 /f >nul
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $names=@(Get-ChildItem -Path 'HKCU:\Software\Adobe' -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^CSXS\.\d+$' } | ForEach-Object { $_.PSChildName }); if (-not $names.Count) { $names=@('CSXS.11') }; $targets=@($names | Sort-Object { [int]($_ -replace '^CSXS\.','') } | ForEach-Object { [PSCustomObject]@{ Name=$_; Path=('HKCU:\Software\Adobe\' + $_) } }); $needsEnable=$false; foreach ($target in $targets) { $value=(Get-ItemProperty -Path $target.Path -Name PlayerDebugMode -ErrorAction SilentlyContinue).PlayerDebugMode; Write-Output ('Checked: ' + ($target.Path -replace '^HKCU:','HKCU') + '\PlayerDebugMode'); if ($value -ne '1') { $needsEnable=$true } }; if (-not $needsEnable) { Write-Output 'CEP debug mode is already enabled for detected CSXS versions.'; exit 0 }; foreach ($target in $targets) { if (-not (Test-Path $target.Path)) { New-Item -Path 'HKCU:\Software\Adobe' -Name $target.Name -Force | Out-Null }; New-ItemProperty -Path $target.Path -Name PlayerDebugMode -PropertyType String -Value '1' -Force | Out-Null }; Write-Output 'CEP debug mode enabled for detected CSXS versions.'; foreach ($target in $targets) { Write-Output ('Enabled: ' + ($target.Path -replace '^HKCU:','HKCU')) }"
 if errorlevel 1 (
     echo Could not enable CEP debug mode automatically.
     exit /b 1
 )
 
-echo CEP debug mode enabled at %CSXS_KEY%.
 echo Restart Premiere Pro if it was already open.
 exit /b 0
 
