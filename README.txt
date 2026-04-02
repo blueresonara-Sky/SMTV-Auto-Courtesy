@@ -1,16 +1,15 @@
 Auto Footage Courtesy
 
-Current version: v1.0.3
-
-What changed in v1.0.3
-- Fixed the in-panel updater download flow to fetch the release zip through the GitHub asset API, which avoids the redirect issue that caused download failures in the CEP panel
-- The updater now shows the actual download error message when a download still fails
+Current version: v1.0.2
 
 What changed in v1.0.2
 - Added a default courtesy fade transition with a configurable Transition Fade field in the panel
 - Fixed the fade so each added courtesy clip gets its own transition timing instead of only the first one
 - The updater now falls back to the local manifest when the host version lookup returns Unknown
 - The installer now auto-enables detected CSXS debug registry keys without prompting
+- The updater now uses the working Auto Slides-style install flow: download to a temp folder, extract, validate, and install in place
+- Enabled CEP Node runtime flags needed by the updater
+- Fixed updater install target resolution so it uses the CEP extension folder path instead of a wrong external path
 
 What changed in v1.0.1
 - Added a built-in GitHub updater area in the panel
