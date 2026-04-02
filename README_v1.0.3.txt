@@ -1,0 +1,1 @@
+v1.0.3: fixes the in-panel updater download flow by fetching the release zip through the GitHub asset API, which avoids CEP download redirect failures, and now shows the actual download error message if a download still fails.

@@ -1,1 +1,0 @@
-v1.0.2: adds a configurable courtesy fade transition, fixes fade timing so every generated courtesy clip gets the transition, improves updater version detection, and auto-enables detected CSXS debug registry keys during install.

@@ -166,11 +166,23 @@
     });
   }
 
+  function applyRequestHeaders(xhr, headers) {
+    if (!headers) { return; }
+    for (var key in headers) {
+      if (headers.hasOwnProperty(key) && headers[key] !== undefined && headers[key] !== null) {
+        xhr.setRequestHeader(key, headers[key]);
+      }
+    }
+  }
+
   function httpGetJson(url) {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
-      xhr.setRequestHeader('Accept', 'application/vnd.github+json');
+      applyRequestHeaders(xhr, {
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      });
       xhr.onreadystatechange = function () {
         if (xhr.readyState !== 4) { return; }
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -190,11 +202,12 @@
     });
   }
 
-  function httpGetArrayBuffer(url) {
+  function httpGetArrayBuffer(url, headers) {
     return new Promise(function (resolve, reject) {
       var xhr = new XMLHttpRequest();
       xhr.open('GET', url, true);
       xhr.responseType = 'arraybuffer';
+      applyRequestHeaders(xhr, headers);
       xhr.onreadystatechange = function () {
         if (xhr.readyState !== 4) { return; }
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -219,6 +232,22 @@
       }
     }
     return null;
+  }
+
+  function getAssetDownloadRequest(asset) {
+    if (asset && asset.url) {
+      return {
+        url: asset.url,
+        headers: {
+          'Accept': 'application/octet-stream',
+          'X-GitHub-Api-Version': '2022-11-28'
+        }
+      };
+    }
+    return {
+      url: asset.browser_download_url,
+      headers: null
+    };
   }
 
   function refreshUpdateUi() {
@@ -381,7 +410,8 @@
     try {
       var buffer;
       try {
-        buffer = await httpGetArrayBuffer(state.latestAsset.browser_download_url);
+        var downloadRequest = getAssetDownloadRequest(state.latestAsset);
+        buffer = await httpGetArrayBuffer(downloadRequest.url, downloadRequest.headers);
       } catch (downloadError) {
         if (downloadError && downloadError.status) {
           throw new Error('Download failed with status ' + downloadError.status + '.');
@@ -395,7 +425,7 @@
       await writeBase64FileWithHost(targetPath, base64Data);
       setUpdateStatus('Downloaded');
     } catch (error) {
-      setUpdateStatus('Download failed');
+      setUpdateStatus(error && error.message ? error.message : 'Download failed');
     } finally {
       state.downloading = false;
       refreshUpdateUi();

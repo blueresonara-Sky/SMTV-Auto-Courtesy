@@ -1,6 +1,10 @@
 Auto Footage Courtesy
 
-Current version: v1.0.2
+Current version: v1.0.3
+
+What changed in v1.0.3
+- Fixed the in-panel updater download flow to fetch the release zip through the GitHub asset API, which avoids the redirect issue that caused download failures in the CEP panel
+- The updater now shows the actual download error message when a download still fails
 
 What changed in v1.0.2
 - Added a default courtesy fade transition with a configurable Transition Fade field in the panel
