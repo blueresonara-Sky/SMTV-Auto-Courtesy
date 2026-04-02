@@ -360,30 +360,10 @@
     }
   }
 
-  function arrayBufferToBase64(buffer) {
-    var bytes = new Uint8Array(buffer);
-    var chunkSize = 0x8000;
-    var binary = '';
-    for (var i = 0; i < bytes.length; i += chunkSize) {
-      var subArray = bytes.subarray(i, i + chunkSize);
-      binary += String.fromCharCode.apply(null, subArray);
-    }
-    return btoa(binary);
-  }
-
-  async function writeBase64FileWithHost(targetPath, base64Data) {
-    var beginResult = await evalHostPromise("filenameCourtesyPanel_beginUpdateWrite('" + esc(targetPath) + "')");
-    if (!beginResult || beginResult.indexOf('OK') !== 0) {
-      throw new Error(beginResult || 'Could not start writing the update file.');
-    }
-
-    var chunkSize = 50000;
-    for (var offset = 0; offset < base64Data.length; offset += chunkSize) {
-      var chunk = base64Data.substring(offset, offset + chunkSize);
-      var appendResult = await evalHostPromise("filenameCourtesyPanel_appendUpdateChunk('" + esc(targetPath) + "','" + esc(chunk) + "')");
-      if (!appendResult || appendResult.indexOf('OK') !== 0) {
-        throw new Error(appendResult || 'Could not write an update chunk.');
-      }
+  async function downloadAssetWithHost(downloadUrl, targetPath) {
+    var result = await evalHostPromise("filenameCourtesyPanel_downloadUpdateAsset('" + esc(downloadUrl) + "','" + esc(targetPath) + "')");
+    if (!result || result.indexOf('OK') !== 0) {
+      throw new Error(result || 'Download failed.');
     }
   }
 
@@ -408,21 +388,9 @@
     setUpdateStatus('Downloading ' + state.latestAsset.name + ' from GitHub...');
 
     try {
-      var buffer;
-      try {
-        var downloadRequest = getAssetDownloadRequest(state.latestAsset);
-        buffer = await httpGetArrayBuffer(downloadRequest.url, downloadRequest.headers);
-      } catch (downloadError) {
-        if (downloadError && downloadError.status) {
-          throw new Error('Download failed with status ' + downloadError.status + '.');
-        }
-        throw downloadError;
-      }
-      var base64Data = arrayBufferToBase64(buffer);
       var safeName = String(state.latestAsset.name || 'panel-update.zip').replace(/[\\/:*?"<>|]/g, '_');
       var targetPath = state.updaterContext.updatesFolder + '\\' + safeName;
-
-      await writeBase64FileWithHost(targetPath, base64Data);
+      await downloadAssetWithHost(state.latestAsset.browser_download_url, targetPath);
       setUpdateStatus('Downloaded');
     } catch (error) {
       setUpdateStatus(error && error.message ? error.message : 'Download failed');

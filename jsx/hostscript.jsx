@@ -732,6 +732,36 @@ function filenameCourtesyPanel_beginUpdateWrite(targetPath) {
     }
 }
 
+function filenameCourtesyPanel_quoteForPowerShell(value) {
+    return "'" + String(value || '').replace(/'/g, "''") + "'";
+}
+
+function filenameCourtesyPanel_downloadUpdateAsset(downloadUrl, targetPath) {
+    try {
+        var command =
+            "$ErrorActionPreference='Stop'; " +
+            "$ProgressPreference='SilentlyContinue'; " +
+            '$url=' + filenameCourtesyPanel_quoteForPowerShell(downloadUrl) + '; ' +
+            '$out=' + filenameCourtesyPanel_quoteForPowerShell(targetPath) + '; ' +
+            '$parent=Split-Path -Parent $out; ' +
+            'if ($parent -and !(Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }; ' +
+            'Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out; ' +
+            "Write-Output 'OK'";
+        var shellCommand = 'powershell -NoProfile -ExecutionPolicy Bypass -Command ' + filenameCourtesyPanel_quoteForPowerShell(command);
+        var result = String(system.callSystem(shellCommand) || '');
+        var trimmed = result.replace(/^\s+|\s+$/g, '');
+        if (trimmed.indexOf('OK') === 0) {
+            return 'OK';
+        }
+        if (trimmed.length) {
+            return 'FAIL: ' + trimmed;
+        }
+        return 'FAIL: Download command returned no output.';
+    } catch (e) {
+        return 'FAIL: ' + e;
+    }
+}
+
 function filenameCourtesyPanel_appendUpdateChunk(targetPath, base64Chunk) {
     try {
         var targetFile = new File(targetPath);
