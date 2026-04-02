@@ -19,6 +19,7 @@
   var GITHUB_REPO = 'blueresonara-Sky/SMTV-Auto-Courtesy';
   var fieldIds = ['mogrtPath', 'textParamName', 'targetTrack', 'scanUpTo', 'minDuration', 'suffix', 'maxCourtesy', 'transitionSeconds'];
   var checkboxIds = ['ignoreV1'];
+  var extensionRoot = '';
   var state = {
     currentVersion: 'Loading...',
     latestVersion: 'Not checked',
@@ -264,6 +265,41 @@
 
   function canUseNodeUpdater() {
     return !!(fs && path && os && https && childProcess);
+  }
+
+  function resolveExtensionRoot() {
+    if (!canUseNodeUpdater()) { return ''; }
+
+    try {
+      if (window.__adobe_cep__ && typeof window.__adobe_cep__.getSystemPath === 'function') {
+        var cepPath = window.__adobe_cep__.getSystemPath('extension');
+        if (cepPath && fs.existsSync(cepPath)) {
+          return cepPath;
+        }
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof window !== 'undefined' && window.location && window.location.pathname) {
+        var pathname = decodeURIComponent(window.location.pathname).replace(/^\/([A-Za-z]:\/)/, '$1');
+        var htmlPath = pathname.replace(/\//g, path.sep);
+        var fromLocation = path.resolve(path.dirname(htmlPath));
+        if (fromLocation && fs.existsSync(fromLocation)) {
+          return fromLocation;
+        }
+      }
+    } catch (e1) {}
+
+    try {
+      if (typeof __dirname !== 'undefined') {
+        var fromDirname = path.resolve(__dirname, '..');
+        if (fromDirname && fs.existsSync(fromDirname)) {
+          return fromDirname;
+        }
+      }
+    } catch (e2) {}
+
+    return '';
   }
 
   function getTempPath(name) {
@@ -540,8 +576,11 @@
       refreshUpdateUi();
       return;
     }
-    if (!state.updaterContext || !state.updaterContext.updatesFolder) {
-      setUpdateStatus('The panel could not determine a local updates folder.');
+    if (!extensionRoot) {
+      extensionRoot = resolveExtensionRoot();
+    }
+    if (!extensionRoot) {
+      setUpdateStatus('The panel could not determine the installed extension folder.');
       refreshUpdateUi();
       return;
     }
@@ -554,7 +593,6 @@
     refreshUpdateUi();
     setUpdateStatus('Downloading ' + state.latestAsset.name + ' from GitHub...');
 
-    var extensionRoot = state.updaterContext.extensionRoot;
     var tempRoot = getTempPath(String(Date.now()));
     var zipPath = path.join(tempRoot, 'update.zip');
     var extractPath = path.join(tempRoot, 'extracted');
