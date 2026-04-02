@@ -44,6 +44,9 @@ if errorlevel 1 (
     goto :fail
 )
 
+call :clear_target_install "%TARGET_DIR%"
+if errorlevel 1 goto :fail
+
 call :remove_old_install "%OLD_DIR_1%"
 if errorlevel 1 goto :fail
 
@@ -74,6 +77,27 @@ echo Install complete.
 echo Open Premiere Pro, then go to Window ^> Extensions ^> Auto Footage Courtesy.
 echo If Premiere was already open, restart it first.
 goto :end
+
+:clear_target_install
+set "CURRENT_TARGET_DIR=%~1"
+if not exist "%CURRENT_TARGET_DIR%" exit /b 0
+
+echo Clearing current install: %CURRENT_TARGET_DIR%
+for /f "delims=" %%I in ('dir /b /a "%CURRENT_TARGET_DIR%" 2^>nul') do (
+    attrib -R -H -S "%CURRENT_TARGET_DIR%\%%I" >nul 2>nul
+    if exist "%CURRENT_TARGET_DIR%\%%I\*" (
+        rmdir /S /Q "%CURRENT_TARGET_DIR%\%%I"
+    ) else (
+        del /F /Q "%CURRENT_TARGET_DIR%\%%I" >nul 2>nul
+    )
+)
+
+for /f "delims=" %%I in ('dir /b /a "%CURRENT_TARGET_DIR%" 2^>nul') do (
+    echo Could not fully clear current install: %CURRENT_TARGET_DIR%
+    exit /b 1
+)
+echo Cleared current install.
+exit /b 0
 
 :remove_old_install
 set "OLD_INSTALL_DIR=%~1"
