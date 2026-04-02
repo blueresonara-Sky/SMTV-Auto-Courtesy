@@ -1,0 +1,1 @@
+v1.0.1: adds GitHub-based update checking and zip download from the official GitHub release feed, limits hidden-track checks to the upper two video tracks, and keeps partially covered clips when their visible portion still meets the minimum duration.
