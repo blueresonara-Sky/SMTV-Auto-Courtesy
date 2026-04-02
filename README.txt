@@ -1,6 +1,12 @@
 Auto Footage Courtesy
 
-Current version: v1.0.1
+Current version: v1.0.2
+
+What changed in v1.0.2
+- Added a default courtesy fade transition with a configurable Transition Fade field in the panel
+- Fixed the fade so each added courtesy clip gets its own transition timing instead of only the first one
+- The updater now falls back to the local manifest when the host version lookup returns Unknown
+- The installer now auto-enables detected CSXS debug registry keys without prompting
 
 What changed in v1.0.1
 - Added a built-in GitHub updater area in the panel

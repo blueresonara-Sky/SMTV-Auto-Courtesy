@@ -1,1 +1,1 @@
-v1.0.1: adds GitHub-based update checking and zip download from the official GitHub release feed, limits hidden-track checks to the upper two video tracks, and keeps partially covered clips when their visible portion still meets the minimum duration.
+v1.0.2: adds a configurable courtesy fade transition, fixes fade timing so every generated courtesy clip gets the transition, improves updater version detection, and auto-enables detected CSXS debug registry keys during install.
