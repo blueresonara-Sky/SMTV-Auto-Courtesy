@@ -3,6 +3,18 @@
   function setStatus(message) { $('status').textContent = message; }
   function setUpdateStatus(message) { $('updateStatus').textContent = message; }
   function setText(id, value) { var el = $(id); if (el) { el.textContent = value; } }
+  var fs = null;
+  var path = null;
+  var os = null;
+  var https = null;
+  var childProcess = null;
+  try {
+    fs = require('fs');
+    path = require('path');
+    os = require('os');
+    https = require('https');
+    childProcess = require('child_process');
+  } catch (nodeError) {}
 
   var GITHUB_REPO = 'blueresonara-Sky/SMTV-Auto-Courtesy';
   var fieldIds = ['mogrtPath', 'textParamName', 'targetTrack', 'scanUpTo', 'minDuration', 'suffix', 'maxCourtesy', 'transitionSeconds'];
@@ -250,6 +262,152 @@
     };
   }
 
+  function canUseNodeUpdater() {
+    return !!(fs && path && os && https && childProcess);
+  }
+
+  function getTempPath(name) {
+    return path.join(os.tmpdir(), 'auto-footage-courtesy-updater', String(name || ''));
+  }
+
+  function ensureDir(dirPath) {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+  }
+
+  function removeDirRecursive(dirPath) {
+    if (!fs.existsSync(dirPath)) { return; }
+    if (fs.rmSync) {
+      fs.rmSync(dirPath, { recursive: true, force: true });
+      return;
+    }
+    fs.readdirSync(dirPath).forEach(function (entry) {
+      var fullPath = path.join(dirPath, entry);
+      var stat = fs.lstatSync(fullPath);
+      if (stat.isDirectory()) {
+        removeDirRecursive(fullPath);
+      } else {
+        fs.unlinkSync(fullPath);
+      }
+    });
+    fs.rmdirSync(dirPath);
+  }
+
+  function removeFileOrDir(targetPath) {
+    if (!fs.existsSync(targetPath)) { return; }
+    var stat = fs.lstatSync(targetPath);
+    if (stat.isDirectory()) {
+      removeDirRecursive(targetPath);
+    } else {
+      fs.unlinkSync(targetPath);
+    }
+  }
+
+  function copyDirRecursive(srcDir, destDir) {
+    ensureDir(destDir);
+    fs.readdirSync(srcDir).forEach(function (entry) {
+      var srcPath = path.join(srcDir, entry);
+      var destPath = path.join(destDir, entry);
+      var stat = fs.lstatSync(srcPath);
+      if (stat.isDirectory()) {
+        copyDirRecursive(srcPath, destPath);
+      } else {
+        fs.copyFileSync(srcPath, destPath);
+      }
+    });
+  }
+
+  function clearDirectoryContents(dirPath) {
+    if (!fs.existsSync(dirPath)) { return; }
+    fs.readdirSync(dirPath).forEach(function (entry) {
+      removeFileOrDir(path.join(dirPath, entry));
+    });
+  }
+
+  function downloadFile(url, destPath, callback, redirectCount) {
+    var redirects = redirectCount || 0;
+    ensureDir(path.dirname(destPath));
+    https.get(url, {
+      headers: {
+        'User-Agent': 'Auto-Footage-Courtesy-Updater',
+        'Accept': 'application/octet-stream'
+      }
+    }, function (res) {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location && redirects < 5) {
+        res.resume();
+        downloadFile(res.headers.location, destPath, callback, redirects + 1);
+        return;
+      }
+      if (res.statusCode !== 200) {
+        res.resume();
+        callback(new Error('Download failed with status ' + res.statusCode + '.'));
+        return;
+      }
+      var file = fs.createWriteStream(destPath);
+      res.pipe(file);
+      file.on('finish', function () {
+        file.close(function () { callback(null); });
+      });
+      file.on('error', function (err) {
+        try { file.close(function () {}); } catch (closeError) {}
+        callback(err);
+      });
+    }).on('error', function (err) {
+      callback(err);
+    });
+  }
+
+  function extractZip(zipPath, destDir) {
+    removeDirRecursive(destDir);
+    ensureDir(destDir);
+    if (/^win/i.test(navigator.platform || '')) {
+      childProcess.execFileSync('powershell.exe', ['-NoProfile', '-Command', 'Expand-Archive -LiteralPath "' + zipPath.replace(/"/g, '""') + '" -DestinationPath "' + destDir.replace(/"/g, '""') + '" -Force']);
+      return;
+    }
+    childProcess.execFileSync('unzip', ['-oq', zipPath, '-d', destDir]);
+  }
+
+  function findExtensionRoot(dirPath, depth) {
+    var maxDepth = typeof depth === 'number' ? depth : 4;
+    if (!fs.existsSync(dirPath) || maxDepth < 0) { return ''; }
+    if (fs.existsSync(path.join(dirPath, 'CSXS', 'manifest.xml'))) {
+      return dirPath;
+    }
+    var entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (var i = 0; i < entries.length; i++) {
+      if (!entries[i].isDirectory()) { continue; }
+      var nested = findExtensionRoot(path.join(dirPath, entries[i].name), maxDepth - 1);
+      if (nested) { return nested; }
+    }
+    return '';
+  }
+
+  function readManifestBundleId(manifestFile) {
+    if (!fs.existsSync(manifestFile)) { return ''; }
+    var manifestText = fs.readFileSync(manifestFile, 'utf8');
+    var match = manifestText.match(/ExtensionBundleId=\"([^\"]+)\"/i);
+    return match && match[1] ? String(match[1]) : '';
+  }
+
+  function validateExtractedExtension(extractedRoot, extensionRoot) {
+    var manifestFile = path.join(extractedRoot, 'CSXS', 'manifest.xml');
+    if (!fs.existsSync(manifestFile)) {
+      throw new Error('Downloaded update does not contain CSXS/manifest.xml.');
+    }
+    var expectedBundleId = readManifestBundleId(path.join(extensionRoot, 'CSXS', 'manifest.xml'));
+    var actualBundleId = readManifestBundleId(manifestFile);
+    if (expectedBundleId && actualBundleId && expectedBundleId !== actualBundleId) {
+      throw new Error('Downloaded update is for a different extension bundle.');
+    }
+  }
+
+  function installExtractedExtension(extractedRoot, extensionRoot) {
+    validateExtractedExtension(extractedRoot, extensionRoot);
+    clearDirectoryContents(extensionRoot);
+    copyDirRecursive(extractedRoot, extensionRoot);
+  }
+
   function refreshUpdateUi() {
     setText('currentVersion', state.currentVersion || 'Unknown');
     setText('latestVersion', state.latestVersion || 'Unknown');
@@ -368,6 +526,11 @@
   }
 
   async function downloadUpdate() {
+    if (!canUseNodeUpdater()) {
+      setUpdateStatus('Local updater runtime is unavailable in this CEP build.');
+      refreshUpdateUi();
+      return;
+    }
     if (state.downloading) { return; }
     if (!state.latestRelease) {
       await checkForUpdates(false);
@@ -383,21 +546,57 @@
       return;
     }
 
+    if (!window.confirm('Install version ' + state.latestVersion + ' from GitHub now? Premiere Pro should be restarted after the update.')) {
+      return;
+    }
+
     state.downloading = true;
     refreshUpdateUi();
     setUpdateStatus('Downloading ' + state.latestAsset.name + ' from GitHub...');
 
+    var extensionRoot = state.updaterContext.extensionRoot;
+    var tempRoot = getTempPath(String(Date.now()));
+    var zipPath = path.join(tempRoot, 'update.zip');
+    var extractPath = path.join(tempRoot, 'extracted');
+
     try {
-      var safeName = String(state.latestAsset.name || 'panel-update.zip').replace(/[\\/:*?"<>|]/g, '_');
-      var targetPath = state.updaterContext.updatesFolder + '\\' + safeName;
-      await downloadAssetWithHost(state.latestAsset.browser_download_url, targetPath);
-      setUpdateStatus('Downloaded');
-    } catch (error) {
-      setUpdateStatus(error && error.message ? error.message : 'Download failed');
-    } finally {
+      ensureDir(tempRoot);
+    } catch (dirError) {
       state.downloading = false;
+      setUpdateStatus('Could not prepare temp update folder: ' + dirError.message);
       refreshUpdateUi();
+      return;
     }
+
+    downloadFile(state.latestAsset.browser_download_url, zipPath, function (downloadErr) {
+      if (downloadErr) {
+        state.downloading = false;
+        setUpdateStatus('Update download failed: ' + downloadErr.message);
+        refreshUpdateUi();
+        return;
+      }
+
+      try {
+        setUpdateStatus('Extracting update...');
+        refreshUpdateUi();
+        extractZip(zipPath, extractPath);
+        var extractedRoot = findExtensionRoot(extractPath);
+        if (!extractedRoot) {
+          throw new Error('Could not find the extension root in the downloaded zip.');
+        }
+
+        setUpdateStatus('Installing update...');
+        refreshUpdateUi();
+        installExtractedExtension(extractedRoot, extensionRoot);
+        state.currentVersion = state.latestVersion || state.currentVersion;
+        state.downloading = false;
+        setUpdateStatus('Update installed. Please restart Premiere Pro.');
+      } catch (installErr) {
+        state.downloading = false;
+        setUpdateStatus('Update install failed: ' + installErr.message);
+      }
+      refreshUpdateUi();
+    });
   }
 
   function runPanel() {
