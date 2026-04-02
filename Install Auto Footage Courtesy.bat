@@ -22,6 +22,9 @@ if "%APPDATA%"=="" (
 set "TARGET_ROOT=%APPDATA%\Adobe\CEP\extensions"
 set "TARGET_DIR=%TARGET_ROOT%\Auto Footage Courtesy"
 set "CSXS_KEY=HKCU\Software\Adobe\CSXS.11"
+set "OLD_DIR_1=%TARGET_ROOT%\premiere_filename_panel_v5_2"
+set "OLD_DIR_2=%TARGET_ROOT%\Filename Courtesy Panel v5.2"
+set "OLD_DIR_3=%TARGET_ROOT%\Filename Courtesy Panel"
 
 echo Installing Auto Footage Courtesy...
 echo Source: %SOURCE_ROOT%
@@ -39,6 +42,15 @@ if errorlevel 1 (
     echo Could not create "%TARGET_DIR%".
     goto :fail
 )
+
+call :remove_old_install "%OLD_DIR_1%"
+if errorlevel 1 goto :fail
+
+call :remove_old_install "%OLD_DIR_2%"
+if errorlevel 1 goto :fail
+
+call :remove_old_install "%OLD_DIR_3%"
+if errorlevel 1 goto :fail
 
 call :copy_dir "CSXS"
 if errorlevel 1 goto :fail
@@ -61,6 +73,21 @@ echo Install complete.
 echo Open Premiere Pro, then go to Window ^> Extensions ^> Auto Footage Courtesy.
 echo If Premiere was already open, restart it first.
 goto :end
+
+:remove_old_install
+set "OLD_INSTALL_DIR=%~1"
+if /I "%OLD_INSTALL_DIR%"=="%TARGET_DIR%" exit /b 0
+
+if exist "%OLD_INSTALL_DIR%" (
+    echo Found old install: %OLD_INSTALL_DIR%
+    rmdir /S /Q "%OLD_INSTALL_DIR%"
+    if exist "%OLD_INSTALL_DIR%" (
+        echo Could not remove old install: %OLD_INSTALL_DIR%
+        exit /b 1
+    )
+    echo Removed old install.
+)
+exit /b 0
 
 :copy_dir
 set "ITEM_NAME=%~1"
