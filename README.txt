@@ -1,6 +1,10 @@
 Auto Footage Courtesy
 
-Current version: v1.0.2
+Current version: v1.0.3
+
+What changed in v1.0.3
+- Fixed courtesy placement when a source clip is split by visible-segment logic: the scanner now uses the first visible segment that meets the minimum duration instead of the longest visible segment
+- Added clearer scan diagnostics with track, start time, duration, and duplicate-selection details
 
 What changed in v1.0.2
 - Added a default courtesy fade transition with a configurable Transition Fade field in the panel

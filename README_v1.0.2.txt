@@ -1,1 +1,0 @@
-v1.0.2: adds the configurable courtesy fade transition, fixes fade timing so every generated courtesy clip gets the transition, improves updater version detection, enables the CEP Node runtime required by the updater, and uses the working Auto Slides-style updater flow to download, extract, validate, and install updates in place.

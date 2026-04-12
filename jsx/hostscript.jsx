@@ -34,6 +34,16 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         if (!isFinite(ticks)) { return 0; }
         return ticks / 254016000000.0;
     }
+    function formatSeconds(secondsValue) {
+        var seconds = Number(secondsValue);
+        if (!isFinite(seconds)) { seconds = 0; }
+        return seconds.toFixed(2) + 's';
+    }
+    function formatClipLocation(trackIndexZeroBased, startTicks, endTicks) {
+        var startSeconds = ticksToSeconds(startTicks);
+        var durationSeconds = ticksToSeconds(Number(endTicks) - Number(startTicks));
+        return 'V' + (trackIndexZeroBased + 1) + ' @ ' + formatSeconds(startSeconds) + ', duration ' + formatSeconds(durationSeconds);
+    }
     function secondsToTicks(secondsValue) {
         var secs = Number(secondsValue);
         if (!isFinite(secs) || secs < 0) { secs = 0; }
@@ -65,6 +75,24 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         }
         return null;
     }
+    function updateTextRunLengths(node, newLength) {
+        if (!node || typeof node !== 'object') { return; }
+        if (node instanceof Array) {
+            for (var i = 0; i < node.length; i++) {
+                updateTextRunLengths(node[i], newLength);
+            }
+            return;
+        }
+        for (var key in node) {
+            if (!node.hasOwnProperty(key)) { continue; }
+            var value = node[key];
+            if (key.match(/TextRunLength$/) && value instanceof Array) {
+                node[key] = [newLength];
+                continue;
+            }
+            updateTextRunLengths(value, newLength);
+        }
+    }
     function setMogrtText(trackItem, paramName, newText) {
         var mogrtComponent = trackItem.getMGTComponent();
         if (!mogrtComponent) { throw new Error('Could not get MOGRT component.'); }
@@ -74,7 +102,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         try {
             var parsed = JSON.parse(raw);
             if (parsed.hasOwnProperty('textEditValue')) { parsed.textEditValue = newText; }
-            if (parsed.hasOwnProperty('fontTextRunLength')) { parsed.fontTextRunLength = [newText.length]; }
+            updateTextRunLengths(parsed, newText.length);
             textParam.setValue(JSON.stringify(parsed), true);
         } catch (e) {
             textParam.setValue(newText, true);
@@ -376,6 +404,38 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
             totalVisibleTicks: totalVisibleTicks
         };
     }
+    function getFirstEligibleVisibleSegment(seq, clipTrackIndex, startTicks, endTicks, targetTrackIndexZeroBased, maxTrackIndexToScan, minDurationTicks) {
+        var visibleSegments = getVisibleSegments(seq, clipTrackIndex, startTicks, endTicks, targetTrackIndexZeroBased, maxTrackIndexToScan);
+        var firstSegment = null;
+        var totalVisibleTicks = 0;
+        for (var i = 0; i < visibleSegments.length; i++) {
+            var segment = visibleSegments[i];
+            var segmentTicks = segment.endTicks - segment.startTicks;
+            if (segmentTicks <= 0) { continue; }
+            totalVisibleTicks += segmentTicks;
+            if (!firstSegment) {
+                firstSegment = {
+                    startTicks: segment.startTicks,
+                    endTicks: segment.endTicks,
+                    durationTicks: segmentTicks
+                };
+            }
+            if (segmentTicks >= minDurationTicks) {
+                return {
+                    segment: {
+                        startTicks: segment.startTicks,
+                        endTicks: segment.endTicks,
+                        durationTicks: segmentTicks
+                    },
+                    totalVisibleTicks: totalVisibleTicks
+                };
+            }
+        }
+        return {
+            segment: firstSegment,
+            totalVisibleTicks: totalVisibleTicks
+        };
+    }
     function getSequenceEndTicks(seq) {
         var maxEndTicks = 0;
         var trackCollections = [seq.videoTracks, seq.audioTracks];
@@ -455,10 +515,14 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
                 if (!clipName) { logs.push('SKIP: unnamed clip on V' + (trackIndex + 1)); continue; }
 
                 var keyAfterAt = extractAfterAt(clipName);
-                if (!keyAfterAt) { logs.push('SKIP: no @ segment -> ' + clipName); continue; }
 
                 var startTicks = Number(clip.start.ticks);
                 var runEndTicks = Number(clip.end.ticks);
+                if (!keyAfterAt) {
+                    logs.push('SKIP: no @ segment at ' + formatClipLocation(trackIndex, startTicks, runEndTicks) + ' -> ' + clipName);
+                    continue;
+                }
+
                 var overlapStartTicks = startTicks > processingRange.startTicks ? startTicks : processingRange.startTicks;
                 var overlapEndTicks = runEndTicks < processingRange.endTicks ? runEndTicks : processingRange.endTicks;
                 var runDurationSeconds = ticksToSeconds(overlapEndTicks - overlapStartTicks);
@@ -484,33 +548,33 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
                 }
 
                 if (overlapEndTicks <= overlapStartTicks) {
-                    logs.push('SKIP: outside selected range -> ' + runNames.join(' | '));
+                    logs.push('SKIP: outside selected range at ' + formatClipLocation(trackIndex, startTicks, runEndTicks) + ' -> ' + runNames.join(' | '));
                     i = j - 1;
                     continue;
                 }
 
-                var visibilityInfo = getBestVisibleSegment(seq, trackIndex, overlapStartTicks, overlapEndTicks, targetTrackIndexZeroBased, maxTrackIndexToScan);
-                if (!visibilityInfo.bestSegment) {
-                    logs.push('SKIP: fully covered by higher visible track within selected scan range -> ' + runNames.join(' | '));
+                var visibilityInfo = getFirstEligibleVisibleSegment(seq, trackIndex, overlapStartTicks, overlapEndTicks, targetTrackIndexZeroBased, maxTrackIndexToScan, secondsToTicks(minDurationSeconds));
+                if (!visibilityInfo.segment) {
+                    logs.push('SKIP: fully covered by higher visible track within selected scan range at ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + runNames.join(' | '));
                     i = j - 1;
                     continue;
                 }
 
-                overlapStartTicks = visibilityInfo.bestSegment.startTicks;
-                overlapEndTicks = visibilityInfo.bestSegment.endTicks;
-                runDurationSeconds = ticksToSeconds(visibilityInfo.bestSegment.durationTicks);
+                overlapStartTicks = visibilityInfo.segment.startTicks;
+                overlapEndTicks = visibilityInfo.segment.endTicks;
+                runDurationSeconds = ticksToSeconds(visibilityInfo.segment.durationTicks);
 
                 if (runDurationSeconds < minDurationSeconds) {
                     if (runNames.length > 1) {
-                        logs.push('SKIP: longest exposed consecutive run too short (' + runDurationSeconds.toFixed(2) + 's visible) -> ' + runNames.join(' | '));
+                        logs.push('SKIP: longest exposed consecutive run too short at ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + formatSeconds(runDurationSeconds) + ' visible -> ' + runNames.join(' | '));
                     } else {
-                        logs.push('SKIP: exposed portion too short (' + runDurationSeconds.toFixed(2) + 's visible) -> ' + clipName);
+                        logs.push('SKIP: exposed portion too short at ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + formatSeconds(runDurationSeconds) + ' visible -> ' + clipName);
                     }
                     i = j - 1;
                     continue;
                 }
 
-                if (!bestByKey.hasOwnProperty(keyAfterAt) || overlapStartTicks < bestByKey[keyAfterAt].startTicks) {
+                if (!bestByKey.hasOwnProperty(keyAfterAt)) {
                     bestByKey[keyAfterAt] = {
                         keyAfterAt: keyAfterAt,
                         clipName: clipName,
@@ -519,6 +583,19 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
                         trackIndex: trackIndex,
                         durationSeconds: runDurationSeconds
                     };
+                    logs.push('SELECT: first eligible "' + keyAfterAt + '" at ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + clipName);
+                } else if (overlapStartTicks < bestByKey[keyAfterAt].startTicks) {
+                    logs.push('SELECT: earlier eligible "' + keyAfterAt + '" replaces ' + formatClipLocation(bestByKey[keyAfterAt].trackIndex, bestByKey[keyAfterAt].startTicks, bestByKey[keyAfterAt].endTicks) + ' with ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + clipName);
+                    bestByKey[keyAfterAt] = {
+                        keyAfterAt: keyAfterAt,
+                        clipName: clipName,
+                        startTicks: overlapStartTicks,
+                        endTicks: overlapEndTicks,
+                        trackIndex: trackIndex,
+                        durationSeconds: runDurationSeconds
+                    };
+                } else {
+                    logs.push('SKIP: later duplicate "' + keyAfterAt + '" kept earlier ' + formatClipLocation(bestByKey[keyAfterAt].trackIndex, bestByKey[keyAfterAt].startTicks, bestByKey[keyAfterAt].endTicks) + ', ignored ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + clipName);
                 }
 
                 i = j - 1;
@@ -604,6 +681,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         }
         lines.push('Unique key: text after @');
         lines.push('Consecutive same-key cuts: combined before minimum-duration check');
+        lines.push('Visible segment rule: use the first visible segment that meets the minimum duration');
         lines.push('');
 
         if (clips.length === 0) {
@@ -622,7 +700,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
                 var result = insertCourtesyClip(seq, targetTrackIndex, mogrtPath, textParamName, item, suffix, maxSecs);
                 processed++;
                 var fadeLabel = result.fadeApplied ? ', fade applied' : ', fade skipped: ' + result.fadeReason;
-                lines.push('OK: ' + item.clipName + ' -> ' + result.text + ' [' + result.displaySeconds.toFixed(2) + 's' + fadeLabel + ']');
+                lines.push('OK: ' + formatClipLocation(item.trackIndex, item.startTicks, item.endTicks) + ' -> ' + item.clipName + ' -> ' + result.text + ' [' + result.displaySeconds.toFixed(2) + 's' + fadeLabel + ']');
             } catch (e) {
                 failed++;
                 lines.push('FAIL: ' + item.clipName + ' -> Error: ' + e);
