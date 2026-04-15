@@ -51,6 +51,19 @@ Install on Windows
 7. Open from:
    Window -> Extensions -> Auto Footage Courtesy
 
+Install on macOS
+1. Unzip the folder.
+2. Run `Install Auto Footage Courtesy.command`.
+3. If macOS says it cannot be opened, open Terminal in the unzipped folder and run:
+   chmod +x "Install Auto Footage Courtesy.command"
+   ./Install\ Auto\ Footage\ Courtesy.command
+4. The installer copies the extension into:
+   ~/Library/Application Support/Adobe/CEP/extensions/Auto Footage Courtesy
+5. The installer enables CEP debug mode for common CSXS versions for the current macOS user.
+6. Restart Premiere Pro.
+7. Open from:
+   Window -> Extensions -> Auto Footage Courtesy
+
 Usage
 1. Prepare a .mogrt with one editable text parameter.
 2. Put your source footage on the video tracks you want to scan.
@@ -70,6 +83,7 @@ Notes
 - The panel includes a Transition Fade field so you can change that fade duration before generating courtesies.
 - For clips that overlap a selected In/Out range, only the overlapping portion is counted for duration and placement.
 - If a source clip is hidden, inactive, or underneath a higher visible source clip, it is ignored.
+- MOGRT files generally work on both Windows and macOS, but the same fonts, plugins, and any linked media must be available on the Mac.
 
 
 

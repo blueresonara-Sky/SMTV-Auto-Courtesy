@@ -1,1 +1,1 @@
-v1.0.3: fixes courtesy placement so split source clips use the first visible segment that meets the minimum duration instead of jumping to a later longer segment, and adds clearer scan diagnostics with track, start time, duration, and duplicate-selection details.
+v1.0.3: fixes courtesy placement so split source clips use the first visible segment that meets the minimum duration instead of jumping to a later longer segment, adds clearer scan diagnostics with track, start time, duration, and duplicate-selection details, and includes a macOS installer command.
