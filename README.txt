@@ -1,6 +1,9 @@
 Auto Footage Courtesy
 
-Current version: v1.0.4
+Current version: v1.0.5
+
+What changed in v1.0.5
+- Fixed the update notes popup layout so long text wraps correctly and does not get cropped in Premiere Pro.
 
 What changed in v1.0.4
 - Fixed courtesy placement when a source clip is split by visible-segment logic: the scanner now uses the first visible segment that meets the minimum duration instead of the longest visible segment
