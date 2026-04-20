@@ -17,6 +17,7 @@
   } catch (nodeError) {}
 
   var GITHUB_REPO = 'blueresonara-Sky/SMTV-Auto-Courtesy';
+  var TEST_UPDATE_FLAG_FILE = 'afc-test-updates.flag';
   var fieldIds = ['mogrtPath', 'textParamName', 'targetTrack', 'scanUpTo', 'minDuration', 'suffix', 'maxCourtesy', 'transitionSeconds'];
   var checkboxIds = ['ignoreV1'];
   var extensionRoot = '';
@@ -250,6 +251,10 @@
     return null;
   }
 
+  function getReleaseVersion(release) {
+    return normalizeVersion(release && (release.tag_name || release.name) || '0.0.0');
+  }
+
   function getAssetDownloadRequest(asset) {
     if (asset && asset.url) {
       return {
@@ -386,6 +391,39 @@
     } catch (e2) {}
 
     return '';
+  }
+
+  function isTestUpdateChannelEnabled() {
+    try {
+      if (localStorage.getItem('filenameCourtesy_updateChannel') === 'test') {
+        return true;
+      }
+    } catch (e) {}
+
+    if (!canUseNodeUpdater()) { return false; }
+    try {
+      var root = extensionRoot || resolveExtensionRoot();
+      return !!(root && fs.existsSync(path.join(root, TEST_UPDATE_FLAG_FILE)));
+    } catch (e1) {
+      return false;
+    }
+  }
+
+  async function getUpdateRelease() {
+    var repoPath = encodeURIComponent(GITHUB_REPO).replace('%2F', '/');
+    if (isTestUpdateChannelEnabled()) {
+      var releases = await httpGetJson('https://api.github.com/repos/' + repoPath + '/releases?per_page=20');
+      if (releases && releases.length) {
+        for (var i = 0; i < releases.length; i++) {
+          var release = releases[i];
+          if (!release || release.draft || !release.prerelease) { continue; }
+          if (compareVersions(getReleaseVersion(release), state.currentVersion) > 0 && findZipAsset(release)) {
+            return release;
+          }
+        }
+      }
+    }
+    return httpGetJson('https://api.github.com/repos/' + repoPath + '/releases/latest');
   }
 
   function getTempPath(name) {
@@ -610,7 +648,7 @@
     try {
       var release;
       try {
-        release = await httpGetJson('https://api.github.com/repos/' + encodeURIComponent(GITHUB_REPO).replace('%2F', '/') + '/releases/latest');
+        release = await getUpdateRelease();
       } catch (requestError) {
         if (requestError && requestError.status === 404) {
           throw new Error('GitHub repo or latest release was not found.');
@@ -620,7 +658,7 @@
         }
         throw requestError;
       }
-      var latestVersion = normalizeVersion(release.tag_name || release.name || '0.0.0');
+      var latestVersion = getReleaseVersion(release);
       var asset = findZipAsset(release);
 
       state.latestRelease = release;
