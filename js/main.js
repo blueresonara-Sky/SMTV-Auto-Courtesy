@@ -279,9 +279,74 @@
     return notes;
   }
 
+  function setModalOpen(isOpen) {
+    var modal = $('updateModal');
+    if (modal) {
+      if (isOpen) {
+        modal.className = 'modal-backdrop is-open';
+      } else {
+        modal.className = 'modal-backdrop';
+      }
+    }
+  }
+
+  function showUpdateModal(title, message, options) {
+    return new Promise(function (resolve) {
+      var modal = $('updateModal');
+      var titleEl = $('updateModalTitle');
+      var bodyEl = $('updateModalBody');
+      var okBtn = $('updateModalOkBtn');
+      var cancelBtn = $('updateModalCancelBtn');
+      if (!modal || !titleEl || !bodyEl || !okBtn || !cancelBtn) {
+        if (options && options.confirm) {
+          resolve(window.confirm(title + '\n\n' + message));
+        } else {
+          window.alert(title + '\n\n' + message);
+          resolve(true);
+        }
+        return;
+      }
+
+      titleEl.textContent = title;
+      bodyEl.textContent = message;
+      okBtn.textContent = options && options.okText ? options.okText : 'OK';
+      cancelBtn.textContent = options && options.cancelText ? options.cancelText : 'Cancel';
+      cancelBtn.style.display = options && options.confirm ? 'inline-block' : 'none';
+
+      function cleanup(result) {
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+        modal.removeEventListener('click', onBackdrop);
+        setModalOpen(false);
+        resolve(result);
+      }
+      function onOk() { cleanup(true); }
+      function onCancel() { cleanup(false); }
+      function onBackdrop(event) {
+        if (event.target === modal && options && options.confirm) {
+          cleanup(false);
+        }
+      }
+
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+      modal.addEventListener('click', onBackdrop);
+      setModalOpen(true);
+    });
+  }
+
+  function buildUpdateNotesMessage(prefix) {
+    var message = '';
+    if (prefix) {
+      message += prefix + '\n\n';
+    }
+    message += 'What is new in ' + state.latestVersion + ':\n\n' + getReleaseNotes(state.latestRelease);
+    return message;
+  }
+
   function showUpdateNotes(title) {
-    if (!state.latestRelease || !window.alert) { return; }
-    window.alert(title + '\n\nWhat is new in ' + state.latestVersion + ':\n\n' + getReleaseNotes(state.latestRelease));
+    if (!state.latestRelease) { return Promise.resolve(true); }
+    return showUpdateModal(title, buildUpdateNotesMessage(''), { okText: 'OK' });
   }
 
   function canUseNodeUpdater() {
@@ -614,9 +679,12 @@
       return;
     }
 
-    var confirmMessage = 'Install version ' + state.latestVersion + ' from GitHub now? Premiere Pro should be restarted after the update.';
-    confirmMessage += '\n\nWhat is new in ' + state.latestVersion + ':\n\n' + getReleaseNotes(state.latestRelease);
-    if (!window.confirm(confirmMessage)) {
+    var confirmed = await showUpdateModal(
+      'Install Update ' + state.latestVersion,
+      buildUpdateNotesMessage('Premiere Pro should be restarted after the update.'),
+      { confirm: true, okText: 'Install Update', cancelText: 'Cancel' }
+    );
+    if (!confirmed) {
       return;
     }
 
