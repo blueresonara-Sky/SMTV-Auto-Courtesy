@@ -1,9 +1,16 @@
 Auto Footage Courtesy
 
-Current version: v1.0.3
+Current version: v1.0.4
+
+What changed in v1.0.4
+- Fixed courtesy placement when a source clip is split by visible-segment logic: the scanner now uses the first visible segment that meets the minimum duration instead of the longest visible segment
+- Added clearer scan diagnostics with track, start time, duration, and duplicate-selection details
+- Coverage detection now ignores higher clips that do not have an @ source name, so overlays such as still images, captions, ban signs, graphics, and videos without @ do not block courtesy for the source underneath.
+- The Generate Courtesy Text button now shows Running and disables itself while the scan is active.
+- The updater now shows the release notes before installing and again after the update is installed.
 
 What changed in v1.0.3
-- Fixed courtesy placement when a source clip is split by visible-segment logic: the scanner now uses the first visible segment that meets the minimum duration instead of the longest visible segment
+- Fixed courtesy placement when a source clip is split by visible-segment logic
 - Added clearer scan diagnostics with track, start time, duration, and duplicate-selection details
 
 What changed in v1.0.2
@@ -82,7 +89,8 @@ Notes
 - Added courtesy clips get a default 0.3 second fade-in and fade-out when the clip opacity property is available.
 - The panel includes a Transition Fade field so you can change that fade duration before generating courtesies.
 - For clips that overlap a selected In/Out range, only the overlapping portion is counted for duration and placement.
-- If a source clip is hidden, inactive, or underneath a higher visible source clip, it is ignored.
+- Hidden or inactive source clips are skipped.
+- Higher clips only count as coverage if they also have an @ source name. Still images, captions, ban signs, graphics, adjustment layers, and videos without @ are ignored for coverage, so the source underneath can still get courtesy text.
 - MOGRT files generally work on both Windows and macOS, but the same fonts, plugins, and any linked media must be available on the Mac.
 
 

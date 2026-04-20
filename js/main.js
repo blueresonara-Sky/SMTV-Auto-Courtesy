@@ -27,7 +27,8 @@
     latestAsset: null,
     updaterContext: null,
     checking: false,
-    downloading: false
+    downloading: false,
+    running: false
   };
 
   function saveSettings() {
@@ -76,7 +77,9 @@
     if (window.__adobe_cep__ && window.__adobe_cep__.evalScript) {
       window.__adobe_cep__.evalScript(script, callback || function () {});
     } else {
-      setStatus('CEP host bridge not available. Open this inside Premiere Pro.');
+      var message = 'CEP host bridge not available. Open this inside Premiere Pro.';
+      setStatus(message);
+      if (callback) { callback(message); }
     }
   }
 
@@ -261,6 +264,24 @@
       url: asset.browser_download_url,
       headers: null
     };
+  }
+
+  function getReleaseNotes(release) {
+    var body = release && release.body ? String(release.body) : '';
+    var name = release && (release.name || release.tag_name) ? String(release.name || release.tag_name) : '';
+    var notes = body.replace(/\r/g, '').trim();
+    if (!notes) {
+      notes = name ? ('Release: ' + name) : 'No release notes were provided for this update.';
+    }
+    if (notes.length > 1800) {
+      notes = notes.substring(0, 1800).replace(/\s+\S*$/, '') + '\n\n...';
+    }
+    return notes;
+  }
+
+  function showUpdateNotes(title) {
+    if (!state.latestRelease || !window.alert) { return; }
+    window.alert(title + '\n\nWhat is new in ' + state.latestVersion + ':\n\n' + getReleaseNotes(state.latestRelease));
   }
 
   function canUseNodeUpdater() {
@@ -463,6 +484,14 @@
     }
   }
 
+  function setRunButtonRunning(isRunning) {
+    state.running = !!isRunning;
+    var runBtn = $('runBtn');
+    if (!runBtn) { return; }
+    runBtn.disabled = state.running;
+    runBtn.textContent = state.running ? 'Running...' : 'Generate Courtesy Text';
+  }
+
   async function loadUpdaterContext() {
     var raw = await evalHostPromise('filenameCourtesyPanel_getUpdaterContext()');
     if (!raw || /^EvalScript error/i.test(raw) || /^FAIL:/i.test(raw)) {
@@ -585,7 +614,9 @@
       return;
     }
 
-    if (!window.confirm('Install version ' + state.latestVersion + ' from GitHub now? Premiere Pro should be restarted after the update.')) {
+    var confirmMessage = 'Install version ' + state.latestVersion + ' from GitHub now? Premiere Pro should be restarted after the update.';
+    confirmMessage += '\n\nWhat is new in ' + state.latestVersion + ':\n\n' + getReleaseNotes(state.latestRelease);
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -629,6 +660,7 @@
         state.currentVersion = state.latestVersion || state.currentVersion;
         state.downloading = false;
         setUpdateStatus('Update installed. Please restart Premiere Pro.');
+        showUpdateNotes('Update installed. Please restart Premiere Pro.');
       } catch (installErr) {
         state.downloading = false;
         setUpdateStatus('Update install failed: ' + installErr.message);
@@ -638,6 +670,7 @@
   }
 
   function runPanel() {
+    if (state.running) { return; }
     var mogrtPath = $('mogrtPath').value.trim();
     var textParamName = $('textParamName').value.trim() || 'title';
     var targetTrack = parseInt($('targetTrack').value, 10);
@@ -658,9 +691,11 @@
     if (isNaN(transitionSeconds) || transitionSeconds < 0) { transitionSeconds = 0.3; }
 
     setStatus('Running...');
+    setRunButtonRunning(true);
     var script = "filenameCourtesyPanel_run('" + esc(mogrtPath) + "','" + esc(textParamName) + "'," + targetTrack + ',' + scanUpTo + ',' + minDuration + ",'" + esc(suffix) + "'," + maxCourtesy + ',' + transitionSeconds + ',' + (ignoreV1 ? 'true' : 'false') + ')';
     evalHost(script, function (result) {
       setStatus(result || 'Done.');
+      setRunButtonRunning(false);
     });
   }
 

@@ -143,14 +143,15 @@
         <label for="targetTrack">Target Text Track</label>
         <select id="targetTrack"><option value="1">V1</option><option value="2">V2</option><option value="3">V3</option><option value="4">V4</option><option value="5" selected>V5</option><option value="6">V6</option><option value="7">V7</option><option value="8">V8</option><option value="9">V9</option><option value="10">V10</option><option value="11">V11</option><option value="12">V12</option><option value="13">V13</option><option value="14">V14</option><option value="15">V15</option><option value="16">V16</option><option value="17">V17</option><option value="18">V18</option><option value="19">V19</option><option value="20">V20</option><option value="21">V21</option></select>
 
-<label>Scan Source Tracks Up To</label>
+<label for="scanUpTo">Scan Source Tracks Up To</label>
 <input id="scanUpTo" value="8" placeholder="e.g. 8">
+<small>Source clips are scanned up to the track you choose here.</small>
       </div>
     </div>
     <div class="checkbox-row">
       <label><input id="ignoreV1" type="checkbox"> Ignore V1 when scanning source clips</label>
     </div>
-    <small>Source clips are scanned up to the track you choose here. If Ignore V1 is checked, clips on V1 are skipped.</small>
+    <small>If Ignore V1 is checked, clips on V1 are skipped.</small>
   </div>
 
   <div class="section">
@@ -179,7 +180,7 @@
 
   <div class="section">
     <button id="runBtn">Generate Courtesy Text</button>
-    <small>Unique clips are grouped by the text after @. Hidden or covered source clips are skipped. If the sequence has In and Out points set, only that range is processed; otherwise the whole active sequence is used.</small>
+    <small>Unique clips are grouped by the text after @. Hidden source clips are skipped. Higher clips only count as coverage if they also have an @ source name. If the sequence has In and Out points set, only that range is processed; otherwise the whole active sequence is used.</small>
   </div>
 
   <div class="section">

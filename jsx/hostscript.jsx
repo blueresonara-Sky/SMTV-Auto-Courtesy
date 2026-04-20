@@ -8,6 +8,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
     if (!isFinite(configuredFadeSeconds) || configuredFadeSeconds < 0) {
         configuredFadeSeconds = DEFAULT_FADE_SECONDS;
     }
+    ignoreV1 = normalizeBoolean(ignoreV1) === true;
     function fileExists(path) {
         try { var f = new File(path); return f.exists; } catch (e) { return false; }
     }
@@ -315,6 +316,8 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
             for (var clipIndex = 0; clipIndex < higherTrack.clips.numItems; clipIndex++) {
                 var higherClip = higherTrack.clips[clipIndex];
                 if (!higherClip || !isObjectVisibleAndActive(higherClip)) { continue; }
+                var higherClipName = getClipDisplayName(higherClip);
+                if (!higherClipName || !extractAfterAt(higherClipName)) { continue; }
                 try {
                     var higherStartTicks = Number(higherClip.start.ticks);
                     var higherEndTicks = Number(higherClip.end.ticks);
@@ -555,7 +558,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
 
                 var visibilityInfo = getFirstEligibleVisibleSegment(seq, trackIndex, overlapStartTicks, overlapEndTicks, targetTrackIndexZeroBased, maxTrackIndexToScan, secondsToTicks(minDurationSeconds));
                 if (!visibilityInfo.segment) {
-                    logs.push('SKIP: fully covered by higher visible track within selected scan range at ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + runNames.join(' | '));
+                    logs.push('SKIP: fully covered by higher visible @ source within selected scan range at ' + formatClipLocation(trackIndex, overlapStartTicks, overlapEndTicks) + ' -> ' + runNames.join(' | '));
                     i = j - 1;
                     continue;
                 }
@@ -681,6 +684,7 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         }
         lines.push('Unique key: text after @');
         lines.push('Consecutive same-key cuts: combined before minimum-duration check');
+        lines.push('Coverage rule: hidden/inactive clips are skipped; higher clips only count as coverage when they also have an @ source name');
         lines.push('Visible segment rule: use the first visible segment that meets the minimum duration');
         lines.push('');
 
