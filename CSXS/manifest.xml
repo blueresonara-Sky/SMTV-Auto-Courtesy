@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.openai.filenamecourtesy.panel" ExtensionBundleVersion="1.0.5" ExtensionBundleName="Auto Footage Courtesy">
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.openai.filenamecourtesy.panel" ExtensionBundleVersion="1.0.6" ExtensionBundleName="Auto Footage Courtesy">
   <ExtensionList>
-    <Extension Id="com.openai.filenamecourtesy.panel.main" Version="1.0.5" />
+    <Extension Id="com.openai.filenamecourtesy.panel.main" Version="1.0.6" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

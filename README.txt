@@ -1,6 +1,10 @@
 Auto Footage Courtesy
 
-Current version: v1.0.5
+Current version: v1.0.6
+
+What changed in v1.0.6
+- The scanner now reads the sequence clip name before the project item name when extracting text after @.
+- If Premiere does not expose a separate sequence clip name, it safely falls back to the project item name.
 
 What changed in v1.0.5
 - Fixed the update notes popup layout so long text wraps correctly and does not get cropped in Premiere Pro.

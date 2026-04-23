@@ -26,8 +26,8 @@ function filenameCourtesyPanel_run(mogrtPath, textParamName, targetTrackNumberOn
         return "Footage courtesy of " + keyAfterAt + ". " + cleanSuffix;
     }
     function getClipDisplayName(trackItem) {
-        try { if (trackItem.projectItem && trackItem.projectItem.name) { return String(trackItem.projectItem.name); } } catch (e) {}
-        try { if (trackItem.name) { return String(trackItem.name); } } catch (e2) {}
+        try { if (trackItem.name) { return String(trackItem.name); } } catch (e) {}
+        try { if (trackItem.projectItem && trackItem.projectItem.name) { return String(trackItem.projectItem.name); } } catch (e2) {}
         return null;
     }
     function ticksToSeconds(ticksValue) {
